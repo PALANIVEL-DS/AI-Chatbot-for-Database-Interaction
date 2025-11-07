@@ -1,27 +1,32 @@
-# =========================================
-# 🚫 Sensitive and Unnecessary Files to Ignore
-# =========================================
-
-#  Environment files (NEVER commit secrets)
+# Environment & API keys
 .env
+*.env
 
-#  Local database files (demo/testing only)
-*.db
-
-#  Chroma / Embeddings cache
-chroma_db/
+# Cache / Temp
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db-journal
+*.sqlite3
+
+# Local database files
+demo_database.db
+chroma_db/
+vectorstore/
+
+# VSCode and IDE configs
+.vscode/
+.idea/
+*.code-workspace
 
 # Jupyter checkpoints
 .ipynb_checkpoints/
 
-# Streamlit cache/config files
-.streamlit/
+# Streamlit files
+.streamlit/secrets.toml
+.streamlit/config.toml
 
-# OS/System files
+# OS & system files
 .DS_Store
 Thumbs.db
-
-# Build or virtual env folders
-venv/
-.env/
