@@ -16,7 +16,7 @@ sqlalchemy==2.0.35
 pyodbc==5.1.0
 pandas==2.2.3
 numpy==1.26.4
-torch==2.3.1+cpu
+torch==2.5.1
 sentence-transformers==5.1.2
 
 python-dotenv==1.0.1
