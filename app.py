@@ -138,7 +138,8 @@ if "gemini_status" not in st.session_state:
 #   - Non-blocking. If absent or invalid, the user can still use their key.
 
 st.sidebar.subheader("🧠 LLM Configuration (admin key)")
-admin_key = os.getenv("GOOGLE_API_KEY", "").strip()
+admin_key = st.secrets.get("GOOGLE_API_KEY", "").strip()
+
 
 def connect_admin():
     """
