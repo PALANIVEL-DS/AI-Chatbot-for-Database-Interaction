@@ -19,6 +19,7 @@ sentence-transformers==5.1.2
 
 # ===== ✅ Google GenAI (Compatible) =====
 google-generativeai==0.8.3
+langchain-google-genai==0.0.11
 
 # ===== Database + Utils =====
 SQLAlchemy==2.0.35
