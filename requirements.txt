@@ -38,6 +38,7 @@ requests==2.32.3
 tqdm==4.67.1
 plotly==6.3.1
 validators==0.35.0
+sqlparse==0.5.1
 
 grpcio==1.76.0
 orjson==3.11.4
