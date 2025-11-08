@@ -1,59 +1,43 @@
-# ---------- Core Framework ----------
+# ===== Streamlit UI =====
 streamlit==1.51.0
 streamlit-extras==0.7.8
-st-annotated-text==4.0.2
-streamlit-card==1.0.2
-streamlit-camera-input-live==0.2.0
-streamlit-notify==0.3.1
 streamlit-toggle-switch==1.0.2
-streamlit-vertical-slider==2.5.5
+streamlit-card==1.0.2
+streamlit-notify==0.3.1
+st-annotated-text==4.0.2
+markdownlit==0.0.7
 
-# ---------- LangChain + Vector DB ----------
+# ===== LangChain + RAG =====
 langchain==0.3.7
 langchain-core==0.3.63
 langchain-community==0.3.7
 langchain-chroma==0.1.4
 langchain-huggingface==0.1.0
-langchain-google-genai==2.0.0
 chromadb==0.5.3
-
-# ---------- AI & Embeddings ----------
+huggingface-hub==0.25.1
 sentence-transformers==5.1.2
-torch==2.3.1
-transformers==4.57.1
-huggingface-hub==0.36.0
-google-generativeai==0.7.2
 
-# ---------- Database + ORM ----------
+# ===== ✅ Google GenAI (Compatible) =====
+google-generativeai==0.8.3
+
+# ===== Database + Utils =====
 SQLAlchemy==2.0.35
 pyodbc==5.1.0
-sqlparse==0.5.3
-
-# ---------- Utilities ----------
 pandas==2.2.3
 numpy==1.26.4
-requests==2.32.3
+scikit-learn==1.7.2
+
+# ===== ✅ Stable protobuf for all =====
+protobuf==5.27.3
+
+
+# ===== Others =====
 python-dotenv==1.2.1
-protobuf>=4.25.0,<5.0.0
-typing_extensions==4.12.2
-packaging==24.2
-validators==0.35.0
-markdownlit==0.0.7
-htbuilder==0.9.0
-prometheus-client==0.23.1
-watchdog==6.0.0
-dataclasses-json==0.6.7
-
-# ---------- Visualization ----------
-plotly==6.3.1
-altair==5.3.0
-
-# ---------- Optional Dependencies ----------
+requests==2.32.3
 tqdm==4.67.1
-fastapi==0.121.0
-uvicorn==0.38.0
-google-api-python-client==2.187.0
-google-auth==2.43.0
+plotly==6.3.1
+validators==0.35.0
+
 grpcio==1.76.0
 orjson==3.11.4
 tenacity==8.5.0
