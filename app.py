@@ -138,6 +138,8 @@ if "gemini_status" not in st.session_state:
 #   - Non-blocking. If absent or invalid, the user can still use their key.
 
 st.sidebar.subheader("🧠 LLM Configuration (admin key)")
+# 🔍 Debug: Check if Streamlit secret key is loaded
+st.sidebar.code(f"Admin key exists: {bool(st.secrets.get('GOOGLE_API_KEY'))}")
 admin_key = st.secrets.get("GOOGLE_API_KEY", "").strip()
 
 
