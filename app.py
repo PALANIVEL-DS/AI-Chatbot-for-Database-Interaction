@@ -83,24 +83,31 @@ def _try_init_gemini(api_key: str):
     Try to initialize the Google Generative AI client with the provided key.
 
     Returns:
-        (llm, err) where:
-            - llm: initialized GoogleGenerativeAI instance or None
-            - err: one of {None, 'rate_limit', 'invalid', 'unavailable', 'other'}
-
-    Why this function:
-        - Centralizes and normalizes error handling so the UI can display
-          friendly messages without exposing stack traces.
+        (llm, err)
     """
     try:
         from langchain_google_genai import GoogleGenerativeAI
+        import google.api_core.exceptions as google_exceptions
+
+        # ✅ Explicitly set the API key environment (needed in Streamlit Cloud)
+        os.environ["GOOGLE_API_KEY"] = api_key
+
+        # Initialize model
         _llm = GoogleGenerativeAI(
             model=gemini_model,
             google_api_key=api_key,
             temperature=0.1,
             max_output_tokens=1024,
         )
-        # Light ping to ensure the key and model are valid
-        _ = _llm.invoke("ping")
+
+        # ✅ Test request to confirm it works
+        try:
+            _ = _llm.invoke("ping")
+        except Exception as test_err:
+            if "API key not valid" in str(test_err):
+                return None, "invalid"
+            raise test_err
+
         return _llm, None
 
     except google_exceptions.ResourceExhausted:
@@ -110,6 +117,7 @@ def _try_init_gemini(api_key: str):
     except google_exceptions.ServiceUnavailable:
         return None, "unavailable"
     except Exception as e:
+        st.sidebar.error(f"Gemini init error: {str(e)}")  # ✅ show the real reason
         if "API key not valid" in str(e) or "INVALID_ARGUMENT" in str(e):
             return None, "invalid"
         return None, "other"
