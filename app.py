@@ -258,9 +258,6 @@ if st.sidebar.button("▶️ Connect (My Key)"):
             st.session_state.llm_source = "user"
             st.session_state.gemini_status = "connected"
         
-            st.sidebar.success("✅ Gemini initialized with your key.")
-            st.sidebar.info("🧩 You can now choose a different Gemini model below 👇")
-        
             # --- Model dropdown for user-connected session ---
             model_options = [
                 "models/gemini-2.5-pro",
@@ -278,6 +275,7 @@ if st.sidebar.button("▶️ Connect (My Key)"):
             # Save the selection in session_state
             st.session_state["selected_gemini_model"] = selected_model
             st.sidebar.success(f"🧠 Using model: `{selected_model}`")
+            st.sidebar.success("✅ Gemini initialized with your key.")
 
         else:
             st.session_state.gemini_status = "error"
