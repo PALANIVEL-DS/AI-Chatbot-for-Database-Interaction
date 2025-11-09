@@ -275,7 +275,6 @@ if st.sidebar.button("▶️ Connect (My Key)"):
             # Save the selection in session_state
             st.session_state["selected_gemini_model"] = selected_model
             st.sidebar.success(f"🧠 Using model: `{selected_model}`")
-            st.sidebar.success("✅ Gemini initialized with your key.")
 
         else:
             st.session_state.gemini_status = "error"
@@ -287,6 +286,11 @@ if st.sidebar.button("▶️ Connect (My Key)"):
                 st.sidebar.error("⚠️ Gemini temporarily unavailable.")
             else:
                 st.sidebar.error("⚠️ Could not initialize with your key.")
+
+if llm is None:
+    st.sidebar.warning("⚠️ Gemini not connected yet — please connect using Admin or User key.")
+else:
+    st.sidebar.success("✅ Gemini is active and ready.")
 
 # ✅ Single Clean Reset: Clear both Admin & User Gemini keys
 if st.sidebar.button("🗑️ Clear Keys"):
@@ -320,11 +324,6 @@ if st.session_state.gemini_llm is None:
 
 # Expose LLM object for downstream usage
 llm = st.session_state.gemini_llm
-
-if llm is None:
-    st.sidebar.warning("⚠️ Gemini not connected yet — please connect using Admin or User key.")
-else:
-    st.sidebar.success("✅ Gemini is active and ready.")
 
 
 # ===============================================================
