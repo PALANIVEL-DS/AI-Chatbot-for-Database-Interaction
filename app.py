@@ -276,6 +276,8 @@ if st.sidebar.button("🗑️ Clear Keys"):
     for key in list(st.session_state.keys()):
         if "gemini" in key or "__user_gemini" in key or "llm" in key:
             del st.session_state[key]
+    # also clear Streamlit text input memory
+    st.session_state["__user_gemini_key"] = ""
     # Explicitly reset status flags
     st.session_state.gemini_llm = None
     st.session_state.llm_source = None
