@@ -257,8 +257,28 @@ if st.sidebar.button("▶️ Connect (My Key)"):
             st.session_state.gemini_llm = llm_try
             st.session_state.llm_source = "user"
             st.session_state.gemini_status = "connected"
+        
             st.sidebar.success("✅ Gemini initialized with your key.")
-            st.sidebar.info(f"🧩 Using: {gemini_model}")
+            st.sidebar.info("🧩 You can now choose a different Gemini model below 👇")
+        
+            # --- Model dropdown for user-connected session ---
+            model_options = [
+                "models/gemini-2.5-pro",
+                "models/gemini-2.5-flash",
+                "models/gemini-2.5-flash-lite",
+            ]
+            selected_model = st.sidebar.selectbox(
+                "🧠 Choose Gemini Model",
+                model_options,
+                index=0,
+                help="Pick an advanced Gemini model to use with your own key.",
+                key="user_model_selector",
+            )
+        
+            # Save the selection in session_state
+            st.session_state["selected_gemini_model"] = selected_model
+            st.sidebar.success(f"🧠 Using model: `{selected_model}`")
+
         else:
             st.session_state.gemini_status = "error"
             if err == "rate_limit":
