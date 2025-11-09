@@ -189,7 +189,7 @@ if st.sidebar.button("▶️ Connect (Admin Key)"):
 if st.session_state.llm_source == "admin" and st.session_state.gemini_llm:
     with st.sidebar.expander("✅ Admin Key Active", expanded=True):
         st.markdown(f"**🧩 Using model:** `{gemini_model}`")
-
+        st.info("💡 You can choose alternative models with your own Gemini API key using the below connection.")
 
 # ===============================================================
 # App Title & Subtitle — (UI only, no logic)
