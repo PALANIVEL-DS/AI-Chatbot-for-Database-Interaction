@@ -233,61 +233,49 @@ st.markdown("""
 
 
 # ===============================================================
-# Sidebar — User Key Connect / Disconnect / Clear
+# Sidebar — User Key Connect / Clear
 # ===============================================================
 # 📌 Purpose:
 #   - Allow a user to provide their own key temporarily (in-memory only).
-#   - Provide a safe "disconnect" that reverts to admin/no model.
 #   - "Clear Keys" wipes the in-memory entries from session_state.
 
 st.sidebar.subheader("🧠 LLM Configuration (user key)")
 
-if st.session_state.llm_source == "user":
-    st.sidebar.success("✅ Gemini initialized with your key.")
-    st.sidebar.info(f"🧩 Using: {gemini_model}")
+user_key = st.sidebar.text_input(
+    "Enter your Google Gemini API Key:",
+    type="password",
+    key="__user_gemini_key",
+    placeholder="Paste your Gemini API key here...",
+)
 
-    if st.sidebar.button("🔌 Disconnect My Key & Revert to Admin"):
-        st.session_state.gemini_llm = None
-        st.session_state.llm_source = None
-        st.session_state.gemini_status = "disconnected"
-        st.experimental_rerun()
-else:
-    user_key = st.sidebar.text_input(
-        "Enter your Google Gemini API Key:",
-        type="password",
-        key="__user_gemini_key",
-        placeholder="Paste your Gemini API key here...",
-    )
-    if st.sidebar.button("▶️ Connect (My Key)"):
-        if not user_key.strip():
-            st.sidebar.warning("Please enter your Gemini API key first.")
+if st.sidebar.button("▶️ Connect (My Key)"):
+    if not user_key.strip():
+        st.sidebar.warning("Please enter your Gemini API key first.")
+    else:
+        llm_try, err = _try_init_gemini(user_key.strip())
+        if llm_try:
+            st.session_state.gemini_llm = llm_try
+            st.session_state.llm_source = "user"
+            st.session_state.gemini_status = "connected"
+            st.sidebar.success("✅ Gemini initialized with your key.")
+            st.sidebar.info(f"🧩 Using: {gemini_model}")
         else:
-            llm_try, err = _try_init_gemini(user_key.strip())
-            if llm_try:
-                st.session_state.gemini_llm = llm_try
-                st.session_state.llm_source = "user"
-                st.session_state.gemini_status = "connected"
-                st.sidebar.success("✅ Gemini initialized with your key.")
-                st.sidebar.info(f"🧩 Using: {gemini_model}")
+            st.session_state.gemini_status = "error"
+            if err == "rate_limit":
+                st.sidebar.warning("⏳ Free-tier limit reached. Please wait.")
+            elif err == "invalid":
+                st.sidebar.error("❌ Invalid key. Please check and try again.")
+            elif err == "unavailable":
+                st.sidebar.error("⚠️ Gemini temporarily unavailable.")
             else:
-                st.session_state.gemini_status = "error"
-                if err == "rate_limit":
-                    st.sidebar.warning("⏳ Free-tier limit reached. Please wait.")
-                elif err == "invalid":
-                    st.sidebar.error("❌ Invalid key. Please check and try again.")
-                elif err == "unavailable":
-                    st.sidebar.error("⚠️ Gemini temporarily unavailable.")
-                else:
-                    st.sidebar.error("⚠️ Could not initialize with your key.")
+                st.sidebar.error("⚠️ Could not initialize with your key.")
 
-# Clear only Gemini-related entries from session_state
 if st.sidebar.button("🗑️ Clear Keys"):
     for key in list(st.session_state.keys()):
         if key.startswith("gemini") or key.startswith("__user_gemini"):
             del st.session_state[key]
-    st.sidebar.success("✅ LLM keys cleared.")
+    st.sidebar.success("✅ Gemini keys cleared. Please reconnect using Admin or User key.")
     st.rerun()
-
 
 # ===============================================================
 # Fallback Display (Non-blocking)
