@@ -460,14 +460,17 @@ else:
                 st.session_state.db_connected = False
                 st.session_state.db_error = str(e)
             
-                # ✅ Friendly message instead of long SQL error
+                # ✅ Clean friendly message (no error details shown)
                 if "Login timeout expired" in str(e) or "timeout" in str(e).lower():
                     st.sidebar.info(
-                        "🔒 Your SQL Server can only be accessed locally.\n\n"
-                        "Please run this app on your own computer to connect your database securely."
+                        "🔒 To connect your local SQL Server, please run this app on your own computer.\n\n"
+                        "👉 Clone this project from GitHub and launch it locally — then you can securely access your SQL Server database."
                     )
                 else:
-                    st.sidebar.error(f"❌ Connection failed: {e}")
+                    st.sidebar.warning(
+                        "⚠️ Unable to connect to the SQL Server.\n\n"
+                        "If this is your own database, please run the app locally for a secure connection."
+                    )
 
         else:
             st.sidebar.warning("⚠️ Please fill all fields before connecting.")
