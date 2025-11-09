@@ -236,11 +236,13 @@ st.markdown("""
 # Sidebar — User Key Connect / Clear
 # ===============================================================
 # 📌 Purpose:
-#   - Allow a user to provide their own key temporarily (in-memory only).
-#   - "Clear Keys" wipes the in-memory entries from session_state.
+#   - Allow user-provided Gemini key (temporary, in-memory only)
+#   - Automatically reconnect if model is changed
+#   - "Clear Keys" resets everything cleanly
 
 st.sidebar.subheader("🧠 LLM Configuration (user key)")
 
+# Input field for Gemini API key
 user_key = st.sidebar.text_input(
     "Enter your Google Gemini API Key:",
     type="password",
@@ -248,6 +250,7 @@ user_key = st.sidebar.text_input(
     placeholder="Paste your Gemini API key here...",
 )
 
+# --- Connect with user key ---
 if st.sidebar.button("▶️ Connect (My Key)"):
     if not user_key.strip():
         st.sidebar.warning("Please enter your Gemini API key first.")
@@ -257,27 +260,12 @@ if st.sidebar.button("▶️ Connect (My Key)"):
             st.session_state.gemini_llm = llm_try
             st.session_state.llm_source = "user"
             st.session_state.gemini_status = "connected"
-        
-            # --- Model dropdown for user-connected session ---
-            model_options = [
-                "models/gemini-2.5-pro",
-                "models/gemini-2.5-flash",
-                "models/gemini-2.5-flash-lite",
-            ]
-            selected_model = st.sidebar.selectbox(
-                "🧠 Choose Gemini Model",
-                model_options,
-                index=0,
-                help="Pick an advanced Gemini model to use with your own key.",
-                key="user_model_selector",
-            )
-        
-            # Save the selection in session_state
-            st.session_state["selected_gemini_model"] = selected_model
-            st.sidebar.success(f"🧠 Using model: `{selected_model}`")
-
+            st.session_state.user_key_connected = True
+            st.session_state.user_gemini_api_key = user_key.strip()
+            st.sidebar.success("✅ Gemini initialized with your key.")
         else:
             st.session_state.gemini_status = "error"
+            st.session_state.user_key_connected = False
             if err == "rate_limit":
                 st.sidebar.warning("⏳ Free-tier limit reached. Please wait.")
             elif err == "invalid":
@@ -286,6 +274,53 @@ if st.sidebar.button("▶️ Connect (My Key)"):
                 st.sidebar.error("⚠️ Gemini temporarily unavailable.")
             else:
                 st.sidebar.error("⚠️ Could not initialize with your key.")
+
+
+# --- Model dropdown (visible only when connected successfully) ---
+if st.session_state.get("user_key_connected", False):
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.sidebar.markdown("#### 🧠 Choose Gemini Model")
+
+    model_options = [
+        "models/gemini-2.5-pro",
+        "models/gemini-2.5-flash",
+        "models/gemini-2.5-flash-lite",
+    ]
+
+    selected_model = st.sidebar.selectbox(
+        "Choose Gemini Model",
+        model_options,
+        index=model_options.index(
+            st.session_state.get("selected_gemini_model", "models/gemini-2.5-flash-lite")
+        ) if st.session_state.get("selected_gemini_model") in model_options else 2,
+        help="Pick an advanced Gemini model to use with your own key.",
+        key="user_model_selector",
+    )
+
+    # Auto-reconnect if model changes
+    if (
+        "selected_gemini_model" not in st.session_state
+        or st.session_state["selected_gemini_model"] != selected_model
+    ):
+        st.session_state["selected_gemini_model"] = selected_model
+
+        # Reconnect automatically with the selected model
+        try:
+            from langchain_google_genai import GoogleGenerativeAI
+            llm_new = GoogleGenerativeAI(
+                model=selected_model,
+                google_api_key=st.session_state.user_gemini_api_key,
+                temperature=0.1,
+                max_output_tokens=1024,
+            )
+            # Ping to verify connection
+            _ = llm_new.invoke("ping")
+            st.session_state.gemini_llm = llm_new
+            st.sidebar.success(f"✅ Reconnected using model: `{selected_model}`")
+        except Exception as e:
+            st.sidebar.error(f"⚠️ Could not switch model: {e}")
+
+    st.sidebar.info(f"🧩 Currently using: `{st.session_state['selected_gemini_model']}`")
 
 # ===============================================================
 # Fallback Display (Non-blocking)
@@ -308,19 +343,13 @@ if llm is None:
 else:
     st.sidebar.success("✅ Gemini is active and ready.")
 
-# ✅ Single Clean Reset: Clear both Admin & User Gemini keys
+# --- Single Clean Reset ---
 if st.sidebar.button("🗑️ Clear Keys"):
-    # Remove all Gemini-related session data
     for key in list(st.session_state.keys()):
         if "gemini" in key or "__user_gemini" in key or "llm" in key:
             del st.session_state[key]
-    # also clear Streamlit text input memory
     st.session_state["__user_gemini_key"] = ""
-    # Explicitly reset status flags
-    st.session_state.gemini_llm = None
-    st.session_state.llm_source = None
-    st.session_state.gemini_status = "disconnected"
-
+    st.session_state.user_key_connected = False
     st.sidebar.success("✅ All Gemini connections and keys cleared. Please reconnect using Admin or User key.")
     st.rerun()
 
