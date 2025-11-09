@@ -287,6 +287,22 @@ if st.sidebar.button("▶️ Connect (My Key)"):
             else:
                 st.sidebar.error("⚠️ Could not initialize with your key.")
 
+# ===============================================================
+# Fallback Display (Non-blocking)
+# ===============================================================
+# 📌 Purpose:
+#   If Gemini is not connected yet, keep the app usable and tell the user how
+#   to proceed. We do NOT stop the app here (non-blocking by design).
+
+if st.session_state.gemini_llm is None:
+    if st.session_state.gemini_status == "error":
+        st.warning("Please connect Gemini using a valid API key (admin or your own).")
+    else:
+        st.info("▶️ Click 'Connect' in the sidebar to initialize Gemini.")
+
+# Expose LLM object for downstream usage
+llm = st.session_state.gemini_llm
+
 if llm is None:
     st.sidebar.warning("⚠️ Gemini not connected yet — please connect using Admin or User key.")
 else:
@@ -307,23 +323,6 @@ if st.sidebar.button("🗑️ Clear Keys"):
 
     st.sidebar.success("✅ All Gemini connections and keys cleared. Please reconnect using Admin or User key.")
     st.rerun()
-
-
-# ===============================================================
-# Fallback Display (Non-blocking)
-# ===============================================================
-# 📌 Purpose:
-#   If Gemini is not connected yet, keep the app usable and tell the user how
-#   to proceed. We do NOT stop the app here (non-blocking by design).
-
-if st.session_state.gemini_llm is None:
-    if st.session_state.gemini_status == "error":
-        st.warning("Please connect Gemini using a valid API key (admin or your own).")
-    else:
-        st.info("▶️ Click 'Connect' in the sidebar to initialize Gemini.")
-
-# Expose LLM object for downstream usage
-llm = st.session_state.gemini_llm
 
 
 # ===============================================================
