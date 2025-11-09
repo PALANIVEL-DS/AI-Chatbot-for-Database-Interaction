@@ -270,12 +270,20 @@ if st.sidebar.button("▶️ Connect (My Key)"):
             else:
                 st.sidebar.error("⚠️ Could not initialize with your key.")
 
+# ✅ Single Clean Reset: Clear both Admin & User Gemini keys
 if st.sidebar.button("🗑️ Clear Keys"):
+    # Remove all Gemini-related session data
     for key in list(st.session_state.keys()):
-        if key.startswith("gemini") or key.startswith("__user_gemini"):
+        if "gemini" in key or "__user_gemini" in key or "llm" in key:
             del st.session_state[key]
-    st.sidebar.success("✅ Gemini keys cleared. Please reconnect using Admin or User key.")
+    # Explicitly reset status flags
+    st.session_state.gemini_llm = None
+    st.session_state.llm_source = None
+    st.session_state.gemini_status = "disconnected"
+
+    st.sidebar.success("✅ All Gemini connections and keys cleared. Please reconnect using Admin or User key.")
     st.rerun()
+
 
 # ===============================================================
 # Fallback Display (Non-blocking)
