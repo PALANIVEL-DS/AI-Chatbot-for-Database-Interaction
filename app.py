@@ -146,8 +146,7 @@ if "gemini_status" not in st.session_state:
 #   - Non-blocking. If absent or invalid, the user can still use their key.
 
 st.sidebar.subheader("🧠 LLM Configuration (admin key)")
-# 🔍 Debug: Check if Streamlit secret key is loaded
-st.sidebar.code(f"Admin key exists: {bool(st.secrets.get('GOOGLE_API_KEY'))}")
+
 admin_key = st.secrets.get("GOOGLE_API_KEY", "").strip()
 
 
@@ -460,7 +459,16 @@ else:
             except Exception as e:
                 st.session_state.db_connected = False
                 st.session_state.db_error = str(e)
-                st.sidebar.error(f"❌ Connection failed: {e}")
+            
+                # ✅ Friendly message instead of long SQL error
+                if "Login timeout expired" in str(e) or "timeout" in str(e).lower():
+                    st.sidebar.info(
+                        "🔒 Your SQL Server can only be accessed locally.\n\n"
+                        "Please run this app on your own computer to connect your database securely."
+                    )
+                else:
+                    st.sidebar.error(f"❌ Connection failed: {e}")
+
         else:
             st.sidebar.warning("⚠️ Please fill all fields before connecting.")
 
