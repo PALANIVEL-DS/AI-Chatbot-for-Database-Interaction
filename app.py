@@ -262,7 +262,7 @@ if st.sidebar.button("▶️ Connect (My Key)"):
             st.session_state.gemini_status = "connected"
             st.session_state.user_key_connected = True
             st.session_state.user_gemini_api_key = user_key.strip()
-            st.sidebar.success("✅ Gemini initialized with your key.")
+            
         else:
             st.session_state.gemini_status = "error"
             st.session_state.user_key_connected = False
@@ -316,7 +316,6 @@ if st.session_state.get("user_key_connected", False):
             # Ping to verify connection
             _ = llm_new.invoke("ping")
             st.session_state.gemini_llm = llm_new
-            st.sidebar.success(f"✅ Reconnected using model: `{selected_model}`")
         except Exception as e:
             st.sidebar.error(f"⚠️ Could not switch model: {e}")
 
