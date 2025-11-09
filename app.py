@@ -147,10 +147,7 @@ if "gemini_status" not in st.session_state:
 
 st.sidebar.subheader("🧠 LLM Configuration (admin key)")
 
-try:
-    admin_key = st.secrets.get("GOOGLE_API_KEY", "").strip()
-except Exception:
-    admin_key = os.getenv("GOOGLE_API_KEY", "").strip()
+admin_key = st.secrets.get("GOOGLE_API_KEY", "").strip()
 
 def connect_admin():
     """
