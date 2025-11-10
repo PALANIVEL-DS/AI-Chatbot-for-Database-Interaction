@@ -58,13 +58,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# Read MSSQL defaults from .env (may be empty; that's fine)
-db_user = os.getenv("MSSQL_USERNAME")
-db_password = os.getenv("MSSQL_PASSWORD")
-db_host = os.getenv("MSSQL_SERVER")
-db_name = os.getenv("MSSQL_DATABASE")
-
-
 # ===============================================================
 # Gemini Connection — Safe, Lazy Initialization
 # ===============================================================
