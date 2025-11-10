@@ -32,7 +32,6 @@ from sqlalchemy.exc import ProgrammingError
 from langchain.chains import create_sql_query_chain
 from langchain_community.utilities import SQLDatabase
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_huggingface import HuggingFacePipeline  # (kept for parity; not used directly)
 from langchain_chroma import Chroma
 from langchain.prompts import SemanticSimilarityExampleSelector
 from langchain.prompts import FewShotPromptTemplate
@@ -76,7 +75,7 @@ db_name = os.getenv("MSSQL_DATABASE")
 #   - Never block the app if the model isn't connected yet.
 #   - Track connection state in st.session_state without leaking secrets.
 
-gemini_model = "models/gemini-2.5-flash-lite"  # ✅ fixed as requested
+gemini_model = "models/gemini-2.5-flash-lite"  # fixed model
 
 def _try_init_gemini(api_key: str):
     """
@@ -147,7 +146,10 @@ if "gemini_status" not in st.session_state:
 
 st.sidebar.subheader("🧠 LLM Configuration (admin key)")
 
-admin_key = st.secrets.get("GOOGLE_API_KEY", "").strip()
+try:
+    admin_key = st.secrets.get("GOOGLE_API_KEY", "").strip()
+except Exception:
+    admin_key = os.getenv("GOOGLE_API_KEY", "").strip()
 
 def connect_admin():
     """
@@ -225,7 +227,7 @@ st.markdown("""
         }
     </style>
 
-    <h1 class="main-title">🧠 AI Chatbot for Database Interaction</h1>
+    <h1 class="main-title">🧠 Dynamic Database Interaction AI Chatbot</h1>
     <p class="subtitle">Query, analyze, and explore your database using everyday English</p>
     <hr class="custom-line">
 """, unsafe_allow_html=True)
@@ -353,29 +355,47 @@ if st.sidebar.button("🗑️ Clear Keys"):
 
 
 # ===============================================================
-# Database Connection: Demo (SQLite) or MSSQL (User)
+# Database Connection: Demo (SQLite), MSSQL, or MySQL
 # ===============================================================
 # 📌 Purpose:
-#   - Allow switching between a safe bundled demo and a real MSSQL instance.
+#   - Allow switching between a safe bundled demo, MSSQL, or MySQL instance.
 #   - Demo DB is created locally if not present.
-#   - MSSQL inputs are stored only in session_state (ephemeral).
+#   - User credentials are stored only in session_state (ephemeral).
 
 db = None
 st.sidebar.subheader("🗄️ Database Connection Options")
 
 connection_mode = st.sidebar.radio(
     "Choose database connection mode:",
-    ("Use Demo Database (Safe Mode)", "Connect your Own Database"),
+    ("Use Demo Database", "Connect your Own Databases(MySQL/MSSQL)"),
 )
 
-if connection_mode == "Use Demo Database (Safe Mode)":
+# ===============================================================
+# 🧠 Auto-Detect Database Type (SQLite / MSSQL / MySQL)
+# ===============================================================
+if connection_mode == "Use Demo Database":
+    db_type = "SQLite"
+else:
+    db_choice = st.sidebar.selectbox(
+        "🧩 Select your database type:",
+        ("MSSQL", "MySQL"),
+        help="Choose which type of database you're connecting to. The LLM prompt and SQL syntax will adapt automatically."
+    )
+    db_type = db_choice
+
+# Show the detected or chosen type in sidebar
+st.sidebar.caption(f"🧠 Prompt optimized for: `{db_type}` SQL syntax")
+
+# ===============================================================
+# DEMO DATABASE (SQLite)
+# ===============================================================
+if connection_mode == "Use Demo Database":
     st.sidebar.info("✅ Connected to built-in demo database (no credentials required).")
 
-    # --- Demo DB bootstrapping (SQLite file) ---
+    import sqlite3
     demo_db_path = "demo_database.db"
 
     if not os.path.exists(demo_db_path):
-        import sqlite3
         conn = sqlite3.connect(demo_db_path)
         cursor = conn.cursor()
 
@@ -403,139 +423,126 @@ if connection_mode == "Use Demo Database (Safe Mode)":
         );
         """)
 
-        # Seed data only once
-        cursor.execute("SELECT COUNT(*) FROM employees;")
-        if cursor.fetchone()[0] == 0:
-            cursor.executescript("""
-            INSERT INTO department VALUES 
-                (1, 'data_scientist'), (2, 'data_analyst'), (3, 'data_enginer');
-            INSERT INTO LOCATION VALUES 
-                (122, 'Salem'), (123, 'Dallas'), (124, 'Chicago');
-            INSERT INTO employees VALUES 
-                (1, 'suresh', 1, 18000, 'INDIA', 122),
-                (2, 'ajith', 2, 19000, 'USA', 123),
-                (3, 'arul', 3, 25000, 'CANADA', 124),
-                (4, 'rohesh', 1, 10000, 'USA', 123),
-                (5, 'dinesh', 1, 15000, 'INDIA', 122),
-                (6, 'rahul', 2, 11000, 'USA', 167);
-            """)
+        # Seed sample data
+        cursor.executescript("""
+        INSERT INTO department VALUES 
+            (1, 'data_scientist'), (2, 'data_analyst'), (3, 'data_enginer');
+        INSERT INTO LOCATION VALUES 
+            (122, 'Salem'), (123, 'Dallas'), (124, 'Chicago');
+        INSERT INTO employees VALUES 
+            (1, 'suresh', 1, 18000, 'INDIA', 122),
+            (2, 'ajith', 2, 19000, 'USA', 123),
+            (3, 'arul', 3, 25000, 'CANADA', 124),
+            (4, 'rohesh', 1, 10000, 'USA', 123),
+            (5, 'dinesh', 1, 15000, 'INDIA', 122),
+            (6, 'rahul', 2, 11000, 'USA', 167);
+        """)
         conn.commit()
         conn.close()
 
-    # Create engine and wrap into LangChain SQLDatabase
     engine = create_engine(f"sqlite:///{demo_db_path}")
     db = SQLDatabase(engine, sample_rows_in_table_info=3)
 
-    # --- Helpful overview UI (for demo mode only) ---
     st.markdown("### 🧩 Demo Database Overview")
-    st.info(
-        """
-        This demo database helps you understand how the chatbot works.  
-        It contains 3 main tables — **employees**, **department**, and **location** — linked through foreign keys.
+    st.info("""
+        This demo database helps you understand how the chatbot works.
+        It contains **employees**, **department**, and **location** tables linked through foreign keys.
 
         You can ask natural language questions like:
-        - “List all employees and their departments.”
-        - “Who earns the highest salary?”
-        - “Show all employees working outside India.”
-        - “Find the average salary of data analysts.”
-        - “List employees with salary above 15000 and their cities.”
-        """
-    )
+        - List all employees and their departments.
+        - Who earns the highest salary?
+        - Show all employees working outside India.
+        - Find the average salary of data analysts.
+        - List employees with salary above 15000 and their cities.
+    """)
 
     with st.expander("📊 View Table Details"):
         import pandas as pd
-        import sqlite3
         conn = sqlite3.connect(demo_db_path)
-
-        st.markdown("#### 👨‍💼 employees")
-        employees_preview = pd.read_sql_query("SELECT * FROM employees LIMIT 5;", conn)
-        st.dataframe(employees_preview)
-
-        st.markdown("#### 🏢 department")
-        department_preview = pd.read_sql_query("SELECT * FROM department;", conn)
-        st.dataframe(department_preview)
-
-        st.markdown("#### 🌆 LOCATION")
-        location_preview = pd.read_sql_query("SELECT * FROM LOCATION;", conn)
-        st.dataframe(location_preview)
-
+        for table in ["employees", "department", "LOCATION"]:
+            st.markdown(f"#### {table}")
+            df = pd.read_sql_query(f"SELECT * FROM {table} LIMIT 5;", conn)
+            st.dataframe(df)
         conn.close()
 
-    st.markdown("---")
-    st.markdown("### 💬 Try asking a question below")
-
+# ===============================================================
+# USER DATABASE (MSSQL / MySQL)
+# ===============================================================
 else:
-    st.sidebar.info("🔐 Enter your own MSSQL credentials below.")
+    st.sidebar.info(f"🔐 Enter your {db_type} credentials below:")
 
-    # Initialize session_state fields once (keep ephemeral, never written to disk)
+    # Initialize session_state keys
     for key in ["db_host", "db_name", "db_user", "db_password", "db_connected", "db_error"]:
         if key not in st.session_state:
             st.session_state[key] = "" if not key.endswith("_connected") else False
 
-    # Input controls bound to session_state
-    st.session_state.db_host = st.sidebar.text_input("🖥️ MSSQL Server Name", value=st.session_state.db_host)
+    st.session_state.db_host = st.sidebar.text_input("🖥️ Host / Server Name", value=st.session_state.db_host)
     st.session_state.db_name = st.sidebar.text_input("📂 Database Name", value=st.session_state.db_name)
     st.session_state.db_user = st.sidebar.text_input("👤 Username", value=st.session_state.db_user)
     st.session_state.db_password = st.sidebar.text_input("🔑 Password", value=st.session_state.db_password, type="password")
 
-    # Connect button — validates and persists the active state
     if st.sidebar.button("⚡ Connect to Database"):
-        if all([
-            st.session_state.db_host.strip(),
-            st.session_state.db_name.strip(),
-            st.session_state.db_user.strip(),
-            st.session_state.db_password.strip()
-        ]):
-            try:
+        try:
+            if db_type == "MSSQL":
                 engine = create_engine(
                     f"mssql+pyodbc://{st.session_state.db_user}:{st.session_state.db_password}"
                     f"@{st.session_state.db_host}/{st.session_state.db_name}?driver=ODBC+Driver+17+for+SQL+Server"
                 )
-                # Probe connection
-                conn = engine.connect()
-                conn.close()
-                st.session_state.db_connected = True
-                st.session_state.db_error = ""
-                st.sidebar.success("✅ Connected to your MSSQL database successfully.")
-            except Exception as e:
-                st.session_state.db_connected = False
-                st.session_state.db_error = str(e)
-            
-                # ✅ Clean friendly message (no error details shown)
-                if "Login timeout expired" in str(e) or "timeout" in str(e).lower():
-                    st.sidebar.info(
-                        "🔒 To connect your local SQL Server, please run this app on your own computer.\n\n"
-                        "👉 Clone this project from GitHub and launch it locally — then you can securely access your SQL Server database."
-                    )
-                else:
-                    st.sidebar.warning(
-                        "⚠️ Unable to connect to the SQL Server.\n\n"
-                        "If this is your own database, please run the app locally for a secure connection."
-                    )
+            elif db_type == "MySQL":
+                engine = create_engine(
+                    f"mysql+pymysql://{st.session_state.db_user}:{st.session_state.db_password}"
+                    f"@{st.session_state.db_host}:3306/{st.session_state.db_name}"
+                )
+            else:
+                raise ValueError("Unsupported database type.")
 
-        else:
-            st.sidebar.warning("⚠️ Please fill all fields before connecting.")
+            conn = engine.connect()
+            conn.close()
+            st.session_state.db_connected = True
+            st.sidebar.success(f"✅ Connected to your {db_type} database successfully.")
+            db = SQLDatabase(engine, sample_rows_in_table_info=3)
 
-    # Reflect connection status & provision db handle when active
+        except Exception as e:
+            st.session_state.db_connected = False
+            st.session_state.db_error = str(e)
+
+            if "timeout" in str(e).lower() or "could not connect" in str(e).lower():
+                st.sidebar.info(
+                    f"🔒 To connect your local {db_type} database, please run this app on your own computer.\n\n"
+                    "👉 Clone this project from GitHub and launch locally for secure access."
+                )
+            else:
+                st.sidebar.warning(f"⚠️ Unable to connect to the {db_type} database. Check credentials and try again.")
+
+    # ✅ Keep connection alive after rerun
     if st.session_state.db_connected:
-        st.sidebar.success("🟢 MSSQL connection is active.")
-        engine = create_engine(
-            f"mssql+pyodbc://{st.session_state.db_user}:{st.session_state.db_password}"
-            f"@{st.session_state.db_host}/{st.session_state.db_name}?driver=ODBC+Driver+17+for+SQL+Server"
-        )
-        db = SQLDatabase(engine, sample_rows_in_table_info=3)
+        st.sidebar.success(f"🟢 {db_type} connection is active.")
+        try:
+            if db_type == "MSSQL":
+                engine = create_engine(
+                    f"mssql+pyodbc://{st.session_state.db_user}:{st.session_state.db_password}"
+                    f"@{st.session_state.db_host}/{st.session_state.db_name}?driver=ODBC+Driver+17+for+SQL+Server"
+                )
+            elif db_type == "MySQL":
+                engine = create_engine(
+                    f"mysql+pymysql://{st.session_state.db_user}:{st.session_state.db_password}"
+                    f"@{st.session_state.db_host}:3306/{st.session_state.db_name}"
+                )
+            db = SQLDatabase(engine, sample_rows_in_table_info=3)
+        except Exception as e:
+            st.sidebar.error(f"⚠️ Error reinitializing {db_type} database: {e}")
+            db = None
     else:
-        if st.session_state.db_error:
-            st.sidebar.error(f"⚠️ Last error: {st.session_state.db_error}")
-        st.sidebar.warning("🔴 No database connection established yet.")
-        db = None  # Ensure downstream code never sees an undefined db
+        db = None
 
-    # Clear credentials (safe UI reset)
+
+    # Clear credentials
     if st.sidebar.button("🗑️ Clear DB Credentials"):
         for key in ["db_host", "db_name", "db_user", "db_password", "db_connected", "db_error"]:
             st.session_state[key] = "" if not key.endswith("_connected") and not key.endswith("_error") else False
         st.sidebar.success("✅ Database credentials cleared.")
         st.rerun()
+
 
 
 # ===============================================================
@@ -545,15 +552,128 @@ else:
 #   Seed examples are embedded and indexed, improving LLM reliability by
 #   retrieving relevant examples (via semantic similarity) per question.
 
-few_shots = [
+few_shots = []
+
+if db_type == "SQLite":
+    few_shots = [
+    {'Question': "Show all employee names and their salaries.",
+     'SQLQuery': "SELECT staff_name, salary FROM employees;",
+     'SQLResult': "suresh - 20000, ajith - 15000, arul - 18000",
+     'Answer': "Displays all employees and their salaries."},
+
+    {'Question': "List all department names.",
+     'SQLQuery': "SELECT depart_name FROM department;",
+     'SQLResult': "data_scientist, data_analyst, data_enginer",
+     'Answer': "There are three departments."},
+
+    {'Question': "Show employees who work in the data scientist department.",
+     'SQLQuery': """SELECT e.staff_name, d.depart_name
+FROM employees AS e
+JOIN department AS d ON e.department = d.depart_id
+WHERE d.depart_name = 'data_scientist';""",
+     'SQLResult': "suresh - data_scientist",
+     'Answer': "Suresh works in the Data Scientist department."},
+
+    {'Question': "Find the employee with the highest salary.",
+     'SQLQuery': """SELECT staff_name, salary
+FROM employees
+ORDER BY salary DESC
+LIMIT 1;""",
+     'SQLResult': "suresh - 20000",
+     'Answer': "Suresh earns the highest salary."},
+
+    {'Question': "Find the employee with the lowest salary.",
+     'SQLQuery': """SELECT staff_name, salary
+FROM employees
+ORDER BY salary ASC
+LIMIT 1;""",
+     'SQLResult': "ajith - 15000",
+     'Answer': "Ajith earns the lowest salary."},
+
+    {'Question': "List employees with their department and city.",
+     'SQLQuery': """SELECT e.staff_name, d.depart_name, l.City
+FROM employees AS e
+JOIN department AS d ON e.department = d.depart_id
+JOIN LOCATION AS l ON e.Location_ID = l.Location_ID;""",
+     'SQLResult': "suresh - data_scientist - Salem, ajith - data_analyst - Dallas, arul - data_enginer - Chicago",
+     'Answer': "Displays employees with department and city."},
+
+    {'Question': "Show employees working outside India.",
+     'SQLQuery': """SELECT staff_name, coundry
+FROM employees
+WHERE coundry != 'INDIA';""",
+     'SQLResult': "ajith - USA, arul - CANADA",
+     'Answer': "Ajith and Arul work outside India."},
+
+    {'Question': "Count employees per department.",
+     'SQLQuery': """SELECT d.depart_name, COUNT(e.employee_id)
+FROM employees AS e
+JOIN department AS d ON e.department = d.depart_id
+GROUP BY d.depart_name;""",
+     'SQLResult': "data_scientist - 1, data_analyst - 1, data_enginer - 1",
+     'Answer': "Each department has one employee."},
+
+    {'Question': "Calculate average salary of all employees.",
+     'SQLQuery': "SELECT AVG(salary) FROM employees;",
+     'SQLResult': "17666.67",
+     'Answer': "Average salary is ₹17,666.67."},
+
+    {'Question': "Show employees earning more than ₹15,000.",
+     'SQLQuery': """SELECT e.staff_name, e.salary, d.depart_name
+FROM employees AS e
+JOIN department AS d ON e.department = d.depart_id
+WHERE e.salary > 15000;""",
+     'SQLResult': "suresh - 20000 - data_scientist, arul - 18000 - data_enginer",
+     'Answer': "Suresh and Arul earn above ₹15,000."},
+
+    {'Question': "Find departments with higher-than-average company salary.",
+     'SQLQuery': """SELECT d.depart_name
+FROM department AS d
+JOIN employees AS e ON e.department = d.depart_id
+GROUP BY d.depart_name
+HAVING AVG(e.salary) > (SELECT AVG(salary) FROM employees);""",
+     'SQLResult': "data_enginer",
+     'Answer': "Data Engineer department has higher salary."},
+
+    {'Question': "Which city contributes the most to total payroll?",
+     'SQLQuery': """SELECT l.City, SUM(e.salary) AS TotalSalary
+FROM employees AS e
+JOIN LOCATION AS l ON e.Location_ID = l.Location_ID
+GROUP BY l.City
+ORDER BY TotalSalary DESC
+LIMIT 1;""",
+     'SQLResult': "Chicago - 25000",
+     'Answer': "Chicago contributes the most to payroll."},
+
+    {'Question': "List top 3 employees earning 20% above their department average.",
+     'SQLQuery': """WITH DeptAvg AS (
+  SELECT department, AVG(salary) AS avg_salary
+  FROM employees
+  GROUP BY department)
+SELECT e.staff_name, e.salary, d.depart_name
+FROM employees AS e
+JOIN department AS d ON e.department = d.depart_id
+JOIN DeptAvg AS a ON e.department = a.department
+WHERE e.salary > a.avg_salary * 1.2
+ORDER BY e.salary DESC
+LIMIT 3;""",
+     'SQLResult': "arul - 25000 - data_enginer",
+     'Answer': "Arul earns more than 20% above department average."}
+]
+
+
+elif db_type == "MySQL":
+    few_shots = [
     {'Question': "Show all employee names and their corresponding salaries.",
      'SQLQuery': "SELECT staff_name, salary FROM employees;",
      'SQLResult': "suresh - 20000.00, ajith - 15000.00, arul - 18000.00",
      'Answer': "There are three employees — Suresh earns ₹20,000, Ajith earns ₹15,000, and Arul earns ₹18,000."},
+
     {'Question': "List all department names.",
      'SQLQuery': "SELECT depart_name FROM department;",
      'SQLResult': "data_scientist, data_analyst, data_enginer",
      'Answer': "The company has three departments — Data Scientist, Data Analyst, and Data Engineer."},
+
     {'Question': "Show all employees who work in the data scientist department.",
      'SQLQuery': """SELECT e.staff_name, d.depart_name
 FROM employees AS e
@@ -561,18 +681,23 @@ JOIN department AS d ON e.department = d.depart_id
 WHERE d.depart_name = 'data_scientist';""",
      'SQLResult': "suresh - data_scientist",
      'Answer': "Suresh is the only employee working in the Data Scientist department."},
+
     {'Question': "Which employee has the highest salary?",
-     'SQLQuery': """SELECT TOP 1 staff_name, salary
+     'SQLQuery': """SELECT staff_name, salary
 FROM employees
-ORDER BY salary DESC;""",
+ORDER BY salary DESC
+LIMIT 1;""",
      'SQLResult': "suresh - 20000.00",
      'Answer': "Suresh earns the highest salary — ₹20,000."},
+
     {'Question': "Which employee earns the lowest salary?",
-     'SQLQuery': """SELECT TOP 1 staff_name, salary
+     'SQLQuery': """SELECT staff_name, salary
 FROM employees
-ORDER BY salary ASC;""",
+ORDER BY salary ASC
+LIMIT 1;""",
      'SQLResult': "ajith - 15000.00",
      'Answer': "Ajith earns the lowest salary — ₹15,000."},
+
     {'Question': "List all employees along with their department and city.",
      'SQLQuery': """SELECT e.staff_name, d.depart_name, l.City
 FROM employees AS e
@@ -580,12 +705,14 @@ JOIN department AS d ON e.department = d.depart_id
 JOIN LOCATION AS l ON e.Location_ID = l.Location_ID;""",
      'SQLResult': "suresh - data_scientist - Salem, ajith - data_analyst - Dallas, arul - data_enginer - Chicago",
      'Answer': "Suresh works in Salem as a Data Scientist, Ajith in Dallas as a Data Analyst, and Arul in Chicago as a Data Engineer."},
+
     {'Question': "Show all employees working outside India.",
      'SQLQuery': """SELECT staff_name, coundry
 FROM employees
 WHERE coundry <> 'INDIA';""",
      'SQLResult': "ajith - USA, arul - CANADA",
      'Answer': "Ajith works in the USA and Arul in Canada — both outside India."},
+
     {'Question': "Count how many employees are in each department.",
      'SQLQuery': """SELECT d.depart_name, COUNT(e.employee_id) AS employee_count
 FROM employees AS e
@@ -593,18 +720,154 @@ JOIN department AS d ON e.department = d.depart_id
 GROUP BY d.depart_name;""",
      'SQLResult': "data_scientist - 1, data_analyst - 1, data_enginer - 1",
      'Answer': "Each department currently has one employee."},
+
     {'Question': "Find the average salary of all employees.",
      'SQLQuery': "SELECT AVG(salary) AS average_salary FROM employees;",
      'SQLResult': "17666.67",
      'Answer': "The average employee salary is ₹17,666.67."},
+
     {'Question': "Show all employees and their department where salary is above ₹15,000.",
      'SQLQuery': """SELECT e.staff_name, e.salary, d.depart_name
 FROM employees AS e
-JOIN department AS d ON e.department = d_depart_id
-WHERE e.salary > 15000;""".replace("d_depart_id", "d.depart_id"),
+JOIN department AS d ON e.department = d.depart_id
+WHERE e.salary > 15000;""",
      'SQLResult': "suresh - 20000.00 - data_scientist, arul - 18000.00 - data_enginer",
-     'Answer': "Suresh and Arul earn above ₹15,000 — in Data Scientist and Data Engineer departments, respectively."}
+     'Answer': "Suresh and Arul earn above ₹15,000 — in Data Scientist and Data Engineer departments, respectively."},
+
+    {'Question': "Find the department(s) whose average salary is higher than the company average.",
+     'SQLQuery': """SELECT d.depart_name
+FROM department AS d
+JOIN employees AS e ON d.depart_id = e.department
+GROUP BY d.depart_name
+HAVING AVG(e.salary) > (SELECT AVG(salary) FROM employees);""",
+     'SQLResult': "data_enginer",
+     'Answer': "The Data Engineer department has a higher-than-average company salary."},
+
+    {'Question': "Which city contributes the most to the total payroll?",
+     'SQLQuery': """SELECT l.City, SUM(e.salary) AS TotalSalary
+FROM employees AS e
+JOIN LOCATION AS l ON e.Location_ID = l.Location_ID
+GROUP BY l.City
+ORDER BY TotalSalary DESC
+LIMIT 1;""",
+     'SQLResult': "Chicago - 25000",
+     'Answer': "Chicago contributes the most to the total payroll."},
+
+    {'Question': "List top 3 employees who earn more than 20% above their department’s average salary.",
+     'SQLQuery': """WITH DeptAvg AS (
+  SELECT department, AVG(salary) AS avg_salary
+  FROM employees
+  GROUP BY department)
+SELECT e.staff_name, e.salary, d.depart_name
+FROM employees AS e
+JOIN department AS d ON e.department = d.depart_id
+JOIN DeptAvg AS a ON e.department = a.department
+WHERE e.salary > a.avg_salary * 1.2
+ORDER BY e.salary DESC
+LIMIT 3;""",
+     'SQLResult': "arul - 25000 - data_enginer",
+     'Answer': "Arul earns more than 20% above his department’s average salary."}
 ]
+
+
+else:  # MSSQL
+    few_shots= [
+    {'Question': "Show all employee names and their corresponding salaries.",
+     'SQLQuery': "SELECT staff_name, salary FROM employees;",
+     'SQLResult': "suresh - 20000.00, ajith - 15000.00, arul - 18000.00",
+     'Answer': "Three employees — Suresh earns ₹20,000, Ajith earns ₹15,000, and Arul earns ₹18,000."},
+
+    {'Question': "List all department names.",
+     'SQLQuery': "SELECT depart_name FROM department;", 
+     'SQLResult': "data_scientist, data_analyst, data_enginer",
+     'Answer': "The company has three departments."},
+
+    {'Question': "Show all employees who work in the data scientist department.",
+     'SQLQuery': """SELECT e.staff_name, d.depart_name
+FROM employees AS e
+JOIN department AS d ON e.department = d.depart_id
+WHERE d.depart_name = 'data_scientist';""",
+     'SQLResult': "suresh - data_scientist",
+     'Answer': "Suresh works in the Data Scientist department."},
+
+    {'Question': "Which employee has the highest salary?",
+     'SQLQuery': """SELECT TOP 1 staff_name, salary
+FROM employees
+ORDER BY salary DESC;""",
+     'SQLResult': "suresh - 20000.00",
+     'Answer': "Suresh earns the highest salary."},
+
+    {'Question': "Which employee earns the lowest salary?",
+     'SQLQuery': """SELECT TOP 1 staff_name, salary
+FROM employees
+ORDER BY salary ASC;""",
+     'SQLResult': "ajith - 15000.00",
+     'Answer': "Ajith earns the lowest salary."},
+
+    {'Question': "List all employees with their department and city.",
+     'SQLQuery': """SELECT e.staff_name, d.depart_name, l.City
+FROM employees AS e
+JOIN department AS d ON e.department = d.depart_id
+JOIN LOCATION AS l ON e.Location_ID = l.Location_ID;""",
+     'SQLResult': "suresh - data_scientist - Salem, ajith - data_analyst - Dallas, arul - data_enginer - Chicago",
+     'Answer': "Shows all employees with their departments and cities."},
+
+    {'Question': "Show all employees working outside India.",
+     'SQLQuery': """SELECT staff_name, coundry
+FROM employees
+WHERE coundry <> 'INDIA';""",
+     'SQLResult': "ajith - USA, arul - CANADA",
+     'Answer': "Ajith and Arul work outside India."},
+
+    {'Question': "Count how many employees are in each department.",
+     'SQLQuery': """SELECT d.depart_name, COUNT(e.employee_id) AS employee_count
+FROM employees AS e
+JOIN department AS d ON e.department = d.depart_id
+GROUP BY d.depart_name;""",
+     'SQLResult': "data_scientist - 1, data_analyst - 1, data_enginer - 1",
+     'Answer': "Each department has one employee."},
+
+    {'Question': "Find the average salary of all employees.",
+     'SQLQuery': "SELECT AVG(salary) AS average_salary FROM employees;",
+     'SQLResult': "17666.67",
+     'Answer': "The average salary is ₹17,666.67."},
+
+    {'Question': "Show employees whose salary is above ₹15,000.",
+     'SQLQuery': """SELECT e.staff_name, e.salary, d.depart_name
+FROM employees AS e
+JOIN department AS d ON e.department = d.depart_id
+WHERE e.salary > 15000;""",
+     'SQLResult': "suresh - 20000 - data_scientist, arul - 18000 - data_enginer",
+     'Answer': "Suresh and Arul earn above ₹15,000."},
+
+    {'Question': "Find departments with average salary above company average.",
+     'SQLQuery': """SELECT d.depart_name
+FROM department AS d
+JOIN employees AS e ON e.department = d.depart_id
+GROUP BY d.depart_name
+HAVING AVG(e.salary) > (SELECT AVG(salary) FROM employees);""",
+     'SQLResult': "data_enginer",
+     'Answer': "The Data Engineer department has a higher-than-average salary."},
+
+    {'Question': "Which city contributes the most to total payroll?",
+     'SQLQuery': """SELECT TOP 1 l.City, SUM(e.salary) AS TotalSalary
+FROM employees AS e
+JOIN LOCATION AS l ON e.Location_ID = l.Location_ID
+GROUP BY l.City
+ORDER BY TotalSalary DESC;""",
+     'SQLResult': "Chicago - 25000",
+     'Answer': "Chicago contributes most to payroll."},
+
+    {'Question': "List top 3 employees earning 20% above their department’s average salary.",
+     'SQLQuery': """SELECT TOP 3 e.staff_name, e.salary, d.depart_name
+FROM employees AS e
+JOIN department AS d ON e.department = d.depart_id
+WHERE e.salary > (SELECT AVG(salary)*1.2 FROM employees AS x WHERE x.department = e.department)
+ORDER BY e.salary DESC;""",
+     'SQLResult': "arul - 25000 - data_enginer",
+     'Answer': "Arul earns more than 20% above the average in his department."}
+]
+
 
 
 # ===============================================================
@@ -691,53 +954,95 @@ example_selector = SemanticSimilarityExampleSelector(
 
 
 # ===============================================================
-# Prompt Engineering — MSSQL Focus
+# Prompt Engineering — Adaptive per DB Type (SQLite / MySQL / MSSQL)
 # ===============================================================
 # 📌 Purpose:
-#   - Instruct the LLM to always return valid T-SQL.
-#   - Enforce a strict “Question / SQLQuery / SQLResult / Answer” format.
+#   Dynamically adjust the LLM's SQL reasoning rules, keywords, and examples
+#   based on the active database engine type (db_type).
+#   This ensures accurate and safe query generation.
 
-mssql_prompt = """
-You are an expert SQL developer specialized in Microsoft SQL Server (T-SQL). 
-Your task is to translate a natural language question into a syntactically correct and optimal MSSQL query, 
-execute it mentally, and then return the logical answer to the input question.
+# ✅ Auto-adjust keywords and syntax rules based on DB type
+if db_type == "MSSQL":
+    syntax_notes = """
+    - Use correct **T-SQL** syntax.
+    - Use `TOP {top_k}` when limiting results (e.g., “top 5 employees”).
+    - Do NOT use `LIMIT`; MSSQL doesn’t support it.
+    - Use square brackets [ ] for identifiers (e.g., [salary]).
+    - Use `GETDATE()` for current date/time.
+    - Use `LEN()` for string length.
+    - When joining, always qualify columns with table aliases.
+    """
+elif db_type == "MySQL":
+    syntax_notes = """
+    - Use correct **MySQL** syntax.
+    - Use `LIMIT {top_k}` when limiting rows (never use TOP).
+    - Do NOT use square brackets — use backticks (`column`) only if necessary.
+    - Use `NOW()` for current date/time.
+    - Use `CHAR_LENGTH()` for string length.
+    - Joins should use `INNER JOIN`, `LEFT JOIN`, etc. syntax.
+    """
+else:
+    syntax_notes = """
+    - Use correct **SQLite** syntax.
+    - Use `LIMIT {top_k}` when limiting rows.
+    - Avoid backticks; use plain identifiers.
+    - Use `DATE('now')` for current date.
+    - Be minimal and efficient — SQLite prefers simple queries.
+    """
 
-When creating SQL queries:
-- Always use correct T-SQL syntax.
-- Use only table names and column names that exist in the provided database schema.
-- Never invent columns or tables that are not present.
+# ===============================================================
+# Core Prompt Definition
+# ===============================================================
+llm_prompt = f"""
+You are an expert SQL developer specialized in **{db_type}** database systems.
+
+Your task is to translate a natural language question into a syntactically correct and optimal {db_type} SQL query,
+mentally execute it, and provide the correct answer.
+
+Always follow these detailed rules carefully:
+
+1️⃣ **General Guidelines**
+- Use only table names and column names that exist in the provided database schema (`table_info`).
+- Never invent tables or columns that do not exist.
 - Prefer explicit JOIN syntax instead of comma joins.
-- Use TOP {top_k} only if the question specifically requests a limited number of rows 
-  (e.g., “top 5”, “first 10”, etc.).
-- Otherwise, do not use TOP or LIMIT.
-- Always qualify columns with their table alias when multiple tables are joined.
-- Never use backticks (`) — use [ ] for identifiers.
-- Do not include Markdown fences like ```sql.
-- Do not use LIMIT; use TOP for SQL Server.
-- Use proper MSSQL date functions like GETDATE().
-- Use single quotes for text values.
-- Only select the columns required to answer the question.
+- Use proper casing for SQL keywords (SELECT, FROM, WHERE, JOIN, etc.).
+- Always select only the columns necessary to answer the question.
+- Avoid unnecessary subqueries or nested selects unless required.
+- If aggregation is needed (AVG, SUM, COUNT), use proper GROUP BY clauses.
 
-Format strictly:
-Question: Question here
-SQLQuery: Query to run with no pre-amble
-SQLResult: Result of the SQLQuery
-Answer: Final answer here
+2️⃣ **{db_type} Syntax Rules**
+{syntax_notes}
 
-No pre-amble, no commentary — only the exact format above.
+3️⃣ **Output Format**
+The LLM must strictly follow this output format:
+Question: <restated user question>
+SQLQuery: <final, executable {db_type} SQL query>
+SQLResult: <hypothetical result or logical output>
+Answer: <concise natural language explanation>
+
+
+⚠️ Absolutely no preamble, commentary, or Markdown fences (no ```sql```).
+Only return the format above exactly as shown.
 """
 
-# Few-shot template: pulls top-k similar examples to prime the LLM
+# ===============================================================
+# Few-Shot Prompt Template with Example Selector
+# ===============================================================
 example_prompt = PromptTemplate(
     input_variables=["Question", "SQLQuery", "SQLResult", "Answer"],
-    template="\nQuestion: {Question}\nSQLQuery: {SQLQuery}\nSQLResult: {SQLResult}\nAnswer: {Answer}",
+    template=(
+        "\nQuestion: {Question}\n"
+        "SQLQuery: {SQLQuery}\n"
+        "SQLResult: {SQLResult}\n"
+        "Answer: {Answer}"
+    ),
 )
 
 few_shot_prompt = FewShotPromptTemplate(
     example_selector=example_selector,
     example_prompt=example_prompt,
-    prefix=mssql_prompt,
-    suffix=PROMPT_SUFFIX,
+    prefix=llm_prompt,
+    suffix=PROMPT_SUFFIX,  # includes "Only use these tables" context
     input_variables=["input", "table_info", "top_k"],
 )
 
@@ -755,6 +1060,9 @@ if st.session_state.gemini_llm is None:
 
 # With a live LLM and db, we can now build the chain.
 llm = st.session_state.gemini_llm
+if db is None:
+    st.info("Please connect your database (Demo / MySQL / MSSQL)")
+    st.stop()
 rag_chain = create_sql_query_chain(llm, db, prompt=few_shot_prompt)
 
 
@@ -797,12 +1105,12 @@ def execute_query(question: str):
 
         # 3) Demo safety block: prevent modifications
         destructive_keywords = [
-            "drop ", "delete ", "truncate ", "alter ", "update ", "insert ", "replace "
+            "drop ", "delete ", "truncate ", "alter ", "update ", "insert ", "replace ",
             "create ", "rename ", "grant ", "revoke ", "commit ", "rollback ", "savepoint "
         ]
         lower_query = cleaned_query.lower()
 
-        if connection_mode == "Use Demo Database (Safe Mode)" and any(
+        if connection_mode == "Use Demo Database" and any(
             kw in lower_query for kw in destructive_keywords
         ):
             st.warning("⚠️ This query modifies the demo database — execution blocked for safety.")
@@ -918,27 +1226,63 @@ if st.button("Execute"):
         if cleaned_query and query_result is not None:
             import sqlparse
 
+            # ===============================================================
+            # Generated SQL Query — with Dynamic Info Message
+            # ===============================================================
             st.subheader("🧠 Generated SQL Query:")
+            
+            # Dynamic note based on database type
+            if db_type == "SQLite":
+                st.caption("💡 Currently using **SQLite demo database** output. "
+                           "If you connect your own **MySQL** or **MSSQL** database, "
+                           "the SQL syntax will automatically adapt to that system.")
+            elif db_type == "MySQL":
+                st.caption("💡 Connected to a **MySQL database**. "
+                           "All queries use **MySQL syntax** (e.g., `LIMIT`, backticks, `NOW()`).")
+            elif db_type == "MSSQL":
+                st.caption("💡 Connected to a **Microsoft SQL Server (MSSQL)** database. "
+                           "All queries use **T-SQL syntax** (e.g., `TOP n`, `GETDATE()`, `[brackets]`).")
+            else:
+                st.caption("💡 Using a custom database connection — SQL syntax will adapt automatically.")
+            
+            # Format and display query
             formatted_sql = sqlparse.format(cleaned_query, reindent=True, keyword_case='upper')
             st.code(formatted_sql, language="sql")
 
             st.subheader("📊 Query Result:")
             st.write(query_result)
 
-            # LLM interpretation + MySQL/Oracle equivalents
+            # ===============================================================
+            # 🧠 LLM Interpretation — Dual DB (MySQL + MSSQL)
+            # ===============================================================
             try:
                 llm_input = f"""
-                You are the SQL and data analytics expert.
-                You are given a user's question, the corresponding MSSQL query, and its result.
-                You must:
-                1️⃣ Explain the answer briefly in 1–3 sentences.
-                2️⃣ Provide equivalent SQL queries for the same logic in MySQL
-                and simply explain between these queries if there is any difference 
-                
+                You are an expert SQL and data analytics specialist.
+                The AI has already generated a valid SQL query for SQLite.
+        
+                Your tasks:
+                1️⃣ Briefly (in 2–3 sentences) explain what the query does and what result it returns.
+                2️⃣ Provide equivalent SQL queries for the same logic in:
+                    - MySQL
+                    - MSSQL
+                3️⃣ Finally, summarize the key syntax differences between MySQL and MSSQL.
+        
+                Output format (strictly follow this):
+                💬 Explanation:
+                <brief summary>
+        
+                🔄 Equivalent in MySQL:
+                <MySQL SQL>
+        
+                🔄 Equivalent in MSSQL:
+                <MSSQL SQL>
+        
+                💡 Syntax differences:
+                <short notes>
+        
                 Question: {question}
-                SQLQuery (MSSQL): {cleaned_query}
+                SQLQuery (SQLite): {cleaned_query}
                 SQLResult: {query_result}
-                Answer:
                 """
                 llm_answer = llm.invoke(llm_input)
 
@@ -1006,6 +1350,7 @@ if st.button("Execute"):
                     st.warning("🔑 Gemini API key expired or invalid. Please re-enter your key in the sidebar (User key).")
                 else:
                     st.warning(f"⚠️ LLM interpretation step failed: {e}")
+
 
             # Save to history (preview only)
             st.session_state.history.append({
