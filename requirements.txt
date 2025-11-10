@@ -17,29 +17,27 @@ chromadb==0.5.3
 huggingface-hub==0.25.1
 sentence-transformers==5.1.2
 
-# ===== ✅ Google GenAI (Compatible) =====
+# ===== Google GenAI (Compatible) =====
 google-generativeai==0.8.3
 langchain-google-genai==2.0.5
 
 # ===== Database + Utils =====
 SQLAlchemy==2.0.35
 pyodbc==5.1.0
+PyMySQL==1.1.2
+
 pandas==2.2.3
 numpy==1.26.4
+plotly==6.3.1
 scikit-learn==1.7.2
 
-# ===== ✅ Stable protobuf for all =====
-protobuf==5.27.3
-
-
 # ===== Others =====
+protobuf==5.27.3
 python-dotenv==1.2.1
 requests==2.32.3
 tqdm==4.67.1
-plotly==6.3.1
 validators==0.35.0
 sqlparse==0.5.1
-
 grpcio==1.76.0
 orjson==3.11.4
 tenacity==8.5.0
