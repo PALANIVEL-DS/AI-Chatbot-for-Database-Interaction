@@ -497,13 +497,13 @@ else:
 
             if "timeout" in str(e).lower() or "could not connect" in str(e).lower():
                 st.sidebar.info(
-                    f"🔒 To connect your local {db_type} database, please run this app on your own computer.\n\n"
-                    "👉 Clone this project from GitHub and launch locally for secure access."
+                      f"🔒 This app is currently running on Streamlit Cloud cannot access local databases here.\n\n
+                            git clone this project and run it on your local machine."
                 )
             else:
                 st.sidebar.info(
-                    f"🔒 To connect your local {db_type} database, please run this app on your own computer.\n\n"
-                    "👉 Clone this project from GitHub and launch locally for secure access."
+                    f"🔒 This app is currently running on Streamlit Cloud cannot access local databases here.\n\n
+                          git clone this project and run it on your local machine."
                 )
     # ✅ Keep connection alive after rerun
     if st.session_state.db_connected:
@@ -1217,7 +1217,6 @@ question = st.text_area(
     placeholder="Type your question here (press Enter for a new line, click Execute to run)...",
     height=100
 )
-
 
 # ===============================================================
 # Execute Handler
