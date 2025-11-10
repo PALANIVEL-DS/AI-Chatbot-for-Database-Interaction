@@ -497,13 +497,11 @@ else:
 
             if "timeout" in str(e).lower() or "could not connect" in str(e).lower():
                 st.sidebar.info(
-                      f"🔒 This app is currently running on Streamlit Cloud cannot access local databases here.\n\n
-                            git clone this project and run it on your local machine."
+                      f"🔒 This app is currently running on Streamlit Cloud cannot access local {db_type} here.\n git clone this project and run it on your local machine."
                 )
             else:
                 st.sidebar.info(
-                    f"🔒 This app is currently running on Streamlit Cloud cannot access local databases here.\n\n
-                          git clone this project and run it on your local machine."
+                    f"🔒 This app is currently running on Streamlit Cloud cannot access local {db_type} here.\n git clone this project and run it on your local machine."
                 )
     # ✅ Keep connection alive after rerun
     if st.session_state.db_connected:
