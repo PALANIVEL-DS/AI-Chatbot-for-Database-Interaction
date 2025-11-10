@@ -276,9 +276,9 @@ if st.session_state.get("user_key_connected", False):
     st.sidebar.markdown("#### 🧠 Choose Gemini Model")
 
     model_options = [
-        "models/gemini-2.5-flash-lite",
-        "models/gemini-2.5-flash",
         "models/gemini-2.5-pro",
+        "models/gemini-2.5-flash",
+        "models/gemini-2.5-flash-lite",
     ]
 
     selected_model = st.sidebar.selectbox(
@@ -505,8 +505,9 @@ else:
                     "👉 Clone this project from GitHub and launch locally for secure access."
                 )
             else:
-                st.sidebar.warning(f"⚠️ Unable to connect to the {db_type} database. Check credentials and try again.")
-
+                st.sidebar.info(
+                    f"🔒 To connect your local {db_type} database, please run this app on your own computer.\n\n"
+                    "👉 Clone this project from GitHub and launch locally for secure access."
 
     # ✅ Keep connection alive after rerun
     if st.session_state.db_connected:
