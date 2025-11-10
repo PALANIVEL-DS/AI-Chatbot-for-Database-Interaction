@@ -474,8 +474,41 @@ else:
     st.session_state.db_user = st.sidebar.text_input("👤 Username", value=st.session_state.db_user)
     st.session_state.db_password = st.sidebar.text_input("🔑 Password", value=st.session_state.db_password, type="password")
 
-    if st.sidebar.button("⚡ Connect to Database"):
+    # ===============================================================
+    # 🧩 Smart Database Connection Handler (Cloud + Local Detection)
+    # ===============================================================
+    
+    import socket
+    
+    # Detect whether running in Streamlit Cloud or local machine
+    def is_streamlit_cloud():
+        """
+        Returns True if app is running on Streamlit Cloud, else False.
+        Works by checking environment variables and domain.
+        """
         try:
+            # Streamlit Cloud runs apps from "streamlit.app" or "share.streamlit.io"
+            server_host = socket.gethostname().lower()
+            return any(x in server_host for x in ["streamlit", "share.streamlit"])
+        except Exception:
+            return False
+    
+    
+    if st.sidebar.button("⚡ Connect to Database"):
+        # Detect current environment
+        running_on_cloud = is_streamlit_cloud()
+    
+        try:
+            # ⚙️ If the app runs on Streamlit Cloud and user tries local DB — block safely
+            if running_on_cloud and st.session_state.db_host.strip().lower() in ["localhost", "127.0.0.1"]:
+                st.sidebar.info(
+                    f"🔒 Running on Streamlit Cloud — local {db_type} databases cannot be accessed remotely.\n\n"
+                    "👉 To connect your local MySQL or MSSQL database, please clone this project from GitHub and run it locally on your computer."
+                )
+                st.session_state.db_connected = False
+                st.stop()
+    
+            # ✅ If not on Cloud (i.e., local execution) — proceed with connection
             if db_type == "MSSQL":
                 engine = create_engine(
                     f"mssql+pyodbc://{st.session_state.db_user}:{st.session_state.db_password}"
@@ -488,21 +521,27 @@ else:
                 )
             else:
                 raise ValueError("Unsupported database type.")
-
+    
+            # Try connecting
             conn = engine.connect()
             conn.close()
+    
+            # ✅ Success feedback
             st.session_state.db_connected = True
             st.sidebar.success(f"✅ Connected to your {db_type} database successfully.")
             db = SQLDatabase(engine, sample_rows_in_table_info=3)
-
+    
         except Exception as e:
             st.session_state.db_connected = False
             st.session_state.db_error = str(e)
-
-            if "timeout" in str(e).lower() or "could not connect" in str(e).lower():
-                st.sidebar.info(
-                    f"🔒 To connect your local {db_type} database, please run this app on your own computer.\n\n"
-                    "👉 Clone this project from GitHub and launch locally for secure access."
+            err_msg = str(e).lower()
+    
+            # Specific error handling (authentication / networking)
+            if "access denied" in err_msg or "authentication" in err_msg or "login failed" in err_msg or "password" in err_msg:
+                st.sidebar.error("❌ Invalid username or password. Please recheck your credentials.")
+            elif "unknown host" in err_msg or "could not connect" in err_msg or "timeout" in err_msg:
+                st.sidebar.warning(
+                    f"⚠️ Unable to reach the {db_type} server. Verify hostname or try again later."
                 )
             else:
                 st.sidebar.warning(f"⚠️ Unable to connect to the {db_type} database. Check credentials and try again.")
