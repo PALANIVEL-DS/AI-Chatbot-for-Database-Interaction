@@ -508,7 +508,7 @@ else:
                 st.sidebar.info(
                     f"🔒 To connect your local {db_type} database, please run this app on your own computer.\n\n"
                     "👉 Clone this project from GitHub and launch locally for secure access."
-
+                )
     # ✅ Keep connection alive after rerun
     if st.session_state.db_connected:
         st.sidebar.success(f"🟢 {db_type} connection is active.")
@@ -1060,6 +1060,57 @@ if db is None:
     st.stop()
 rag_chain = create_sql_query_chain(llm, db, prompt=few_shot_prompt)
 
+# =========================================================================
+# 2) Clean + extract only SQL take that query to extract data from database
+# =========================================================================
+
+import re
+
+SQL_START_KEYWORDS = r"""(?i)\b(
+    select|with|insert|update|delete|replace|merge|
+    create|alter|drop|truncate|rename|
+    grant|revoke|analyze|explain|describe|pragma|show|
+    use|commit|rollback|savepoint|call|exec|execute|
+    declare|set|backup|restore|analyze|analyze table
+)\b"""
+
+def extract_sql_only(text: str) -> str:
+    """
+    Return just the first SQL statement from an LLM response.
+    Strips labels like 'Question:', 'Answer:', code fences, etc.
+    """
+    if text is None:
+        raise ValueError("Empty LLM response")
+
+    # Normalize
+    t = str(text)
+
+    # Remove triple-fence blocks (keep inner text) and any backticks
+    t = t.replace("```sql", "```").replace("```", "\n")
+
+    # Remove common labels the LLM might emit
+    t = re.sub(r"(?im)^\s*(Question|Answer|Explanation|SQLResult)\s*:.*$", "", t)
+    t = t.replace("SQLQuery:", "")
+
+    # Collapse multiple spaces/newlines
+    t = re.sub(r"[ \t]+", " ", t)
+    t = re.sub(r"\n+", "\n", t).strip()
+
+    # Find the first SQL-ish statement
+    m = re.search(rf"(?is)\b{SQL_START_KEYWORDS}\b.+?(?=;|\Z)", t)
+    if not m:
+        # Try a more lenient grab (sometimes semicolon already present)
+        m = re.search(rf"(?is)\b{SQL_START_KEYWORDS}\b.*", t)
+    if not m:
+        raise ValueError(f"No SQL found in LLM output:\n{t[:300]}")
+
+    sql = m.group(0).strip()
+
+    # Ensure single trailing semicolon (optional)
+    if not sql.endswith(";"):
+        sql += ";"
+
+    return sql
 
 # ===============================================================
 # SQL Execution Helper
@@ -1089,14 +1140,13 @@ def execute_query(question: str):
         # 1) Generate SQL using the chain
         response = rag_chain.invoke({"question": question})
 
-        # 2) Clean fences/labels
-        cleaned_query = (
-            str(response)
-            .replace("```sql", "")
-            .replace("```", "")
-            .replace("SQLQuery:", "")
-            .strip()
-        )
+        # 2) Clean + extract only SQL (robust across all models)
+        try:
+            cleaned_query = extract_sql_only(response)
+        except Exception as parse_err:
+            st.error(f"Couldn't parse SQL from model output: {parse_err}")
+            st.code(str(response), language="text")
+            return None, None
 
         # 3) Demo safety block: prevent modifications
         destructive_keywords = [
