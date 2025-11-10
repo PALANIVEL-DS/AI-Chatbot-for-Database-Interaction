@@ -1,7 +1,13 @@
+Dynamic Database Interaction AI Chatbot
+
 Built a 90% accurate AI chatbot that translates natural language into SQL queries across multiple databases, enabling real-time data retrieval for enterprise applications such as:
+
 🧾 HR assistants (employee insights & payroll analytics)
+
 🏪 Industrial inventory & sales tracking
+
 💬 Intelligent customer support & reporting tools
+
 🎓 Educational use — helping students learn Multi SQL Syntax Equivalents 
 
 <img width="1280" height="720" alt="overview of project" src="https://github.com/user-attachments/assets/03eaf77d-8312-43bf-9a71-4fee3db261c7" />
