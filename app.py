@@ -41,7 +41,6 @@ from langchain.chains.sql_database.prompt import PROMPT_SUFFIX
 # Extra UI (kept for parity)
 from streamlit_extras.stylable_container import stylable_container
 
-
 # ===============================================================
 # Environment & Page Setup
 # ===============================================================
@@ -114,7 +113,6 @@ def _try_init_gemini(api_key: str):
             return None, "invalid"
         return None, "other"
 
-
 # ===============================================================
 # Session State Initialization
 # ===============================================================
@@ -128,7 +126,6 @@ if "llm_source" not in st.session_state:
     st.session_state.llm_source = None   # one of {"admin", "user", None}
 if "gemini_status" not in st.session_state:
     st.session_state.gemini_status = "disconnected"  # {"connected", "error", "disconnected"}
-
 
 # ===============================================================
 # Sidebar — Admin Key Connect
@@ -224,7 +221,6 @@ st.markdown("""
     <p class="subtitle">Query, analyze, and explore your database using everyday English</p>
     <hr class="custom-line">
 """, unsafe_allow_html=True)
-
 
 # ===============================================================
 # Sidebar — User Key Connect / Clear
@@ -537,8 +533,6 @@ else:
             st.session_state[key] = "" if not key.endswith("_connected") and not key.endswith("_error") else False
         st.sidebar.success("✅ Database credentials cleared.")
         st.rerun()
-
-
 
 # ===============================================================
 # Few-Shot Examples (for better SQL generation)
@@ -863,8 +857,6 @@ ORDER BY e.salary DESC;""",
      'Answer': "Arul earns more than 20% above the average in his department."}
 ]
 
-
-
 # ===============================================================
 # Embeddings / Vector Store — Safe Loader
 # ===============================================================
@@ -947,7 +939,6 @@ example_selector = SemanticSimilarityExampleSelector(
     k=2,
 )
 
-
 # ===============================================================
 # Prompt Engineering — Adaptive per DB Type (SQLite / MySQL / MSSQL)
 # ===============================================================
@@ -1004,6 +995,7 @@ Always follow these detailed rules carefully:
 - Always select only the columns necessary to answer the question.
 - Avoid unnecessary subqueries or nested selects unless required.
 - If aggregation is needed (AVG, SUM, COUNT), use proper GROUP BY clauses.
+- Return only the programmatic fields requested. Do not add commentary.
 
 2️⃣ **{db_type} Syntax Rules**
 {syntax_notes}
@@ -1041,7 +1033,6 @@ few_shot_prompt = FewShotPromptTemplate(
     input_variables=["input", "table_info", "top_k"],
 )
 
-
 # ===============================================================
 # Guard: Require Gemini before Building the Chain
 # ===============================================================
@@ -1060,19 +1051,17 @@ if db is None:
     st.stop()
 rag_chain = create_sql_query_chain(llm, db, prompt=few_shot_prompt)
 
-# =========================================================================
-# 2) Clean + extract only SQL take that query to extract data from database
-# =========================================================================
+# ===============================================================
+# SQL Execution Helper
+# ===============================================================
+# 📌 Purpose:
+#   - Clean the LLM’s output to get the raw SQL string.
+#   - In demo mode, block destructive write operations (safety).
+#   - Execute via LangChain's `db.run` and return (sql, result).
 
 import re
 
-SQL_START_KEYWORDS = r"""(?i)\b(
-    select|with|insert|update|delete|replace|merge|
-    create|alter|drop|truncate|rename|
-    grant|revoke|analyze|explain|describe|pragma|show|
-    use|commit|rollback|savepoint|call|exec|execute|
-    declare|set|backup|restore|analyze|analyze table
-)\b"""
+SQL_START_KEYWORDS = r"(?i)\b(select|with|insert|update|delete|replace|merge|create|alter|drop|truncate|rename|grant|revoke|explain|describe|pragma|show|use|commit|rollback|savepoint|call|exec|execute|declare|set|backup|restore|analyze)\b"
 
 def extract_sql_only(text: str) -> str:
     """
@@ -1111,14 +1100,6 @@ def extract_sql_only(text: str) -> str:
         sql += ";"
 
     return sql
-
-# ===============================================================
-# SQL Execution Helper
-# ===============================================================
-# 📌 Purpose:
-#   - Clean the LLM’s output to get the raw SQL string.
-#   - In demo mode, block destructive write operations (safety).
-#   - Execute via LangChain's `db.run` and return (sql, result).
 
 def execute_query(question: str):
     """
